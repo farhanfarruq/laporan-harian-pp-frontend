@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for bapakamar tabs */
+.tab-btn.active {
+    @apply border-blue-500 text-blue-600;
+}
+.tab-btn:not(.active) {
+    @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300;
+}
