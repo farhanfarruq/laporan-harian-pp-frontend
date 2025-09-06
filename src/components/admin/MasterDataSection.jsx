@@ -1,10 +1,10 @@
 // src/components/admin/MasterDataSection.jsx
 import { useState } from 'react';
-import { useAppContext } from '../../context/AppContext';
+import PengurusTab from './PengurusTab';
+import JobdeskTab from './JobdeskTab';
 
 const MasterDataSection = () => {
     const [activeTab, setActiveTab] = useState('pengurus');
-    const { pengurusData, bidangList } = useAppContext();
 
     const getButtonClass = (tabName) => activeTab === tabName ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
 
@@ -21,37 +21,8 @@ const MasterDataSection = () => {
                 </div>
             </div>
 
-            {activeTab === 'pengurus' && (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bidang</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kelas</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {Object.entries(pengurusData).map(([bidangKey, pengurusList]) => {
-                                const bidangName = bidangList.find(b => b.id === bidangKey)?.name || bidangKey;
-                                return pengurusList.map((p, index) => (
-                                    <tr key={`${bidangKey}-${index}`}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{typeof p === 'object' ? p.nama : p}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bidangName}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{typeof p === 'object' ? p.kelas : '-'}</td>
-                                    </tr>
-                                ));
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {activeTab === 'jobdesk' && (
-                 <div className="text-gray-600">
-                    <p>Fitur untuk melihat data jobdesk akan ditampilkan di sini.</p>
-                </div>
-            )}
+            {activeTab === 'pengurus' && <PengurusTab />}
+            {activeTab === 'jobdesk' && <JobdeskTab />}
         </div>
     );
 };
