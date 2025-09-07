@@ -10,12 +10,12 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const RekapSection = () => {
-    const { reports, bidangList, jobdeskData, loading } = useAppContext();
+    const { reports, bidangList, jobdeskData, pengurusData } = useAppContext();
     const { user } = useAuth();
     
     const [filters, setFilters] = useState({
         tanggal: dayjs().format('YYYY-MM-DD'),
-        bidang: user.role === 'admin_bidang' ? user.bidang : '',
+        bidang: '',
     });
 
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -28,9 +28,9 @@ const RekapSection = () => {
 
     const filteredReports = useMemo(() => {
         return reports.filter(report => {
-            const userRoleCondition = user.role === 'admin_bidang' ? report.bidang.id === user.bidang : true;
+            const userRoleCondition = user.role === 'admin_bidang' ? report.bidang === user.bidang : true;
             const dateCondition = filters.tanggal ? report.tanggal === filters.tanggal : true;
-            const bidangCondition = filters.bidang ? report.bidang.id === filters.bidang : true;
+            const bidangCondition = filters.bidang ? report.bidang === filters.bidang : true;
             return userRoleCondition && dateCondition && bidangCondition;
         });
     }, [reports, filters, user]);
@@ -57,18 +57,23 @@ const RekapSection = () => {
         let yPosition = 40;
 
         filteredReports.forEach(report => {
+            const bidangName = bidangList.find(b => b.id === report.bidang)?.name || 'Tidak diketahui';
+            let jobdeskKey = report.bidang === 'bapakamar' ? `bapakamar_${report.tab}` : report.bidang;
+            const allJobdesks = jobdeskData[jobdeskKey] || [];
+
             const completedTasks = [];
             const incompletedTasks = [];
 
-            report.details.forEach(detail => {
-                if (detail.status === 'selesai') {
-                    completedTasks.push([completedTasks.length + 1, detail.jobdesk.description]);
+            allJobdesks.forEach((job, index) => {
+                if (report.jobdesk[index]) {
+                    completedTasks.push([completedTasks.length + 1, job]);
                 } else {
+                    const incompleteDetail = report.incomplete[index] || { alasan: '-', solusi: '-' };
                     incompletedTasks.push([
                         incompletedTasks.length + 1,
-                        detail.jobdesk.description,
-                        detail.alasan || '-',
-                        detail.solusi || '-'
+                        job,
+                        incompleteDetail.alasan,
+                        incompleteDetail.solusi
                     ]);
                 }
             });
@@ -77,7 +82,7 @@ const RekapSection = () => {
             
             doc.setFontSize(12);
             doc.setFont(undefined, 'bold');
-            doc.text(`${report.bidang.name} - ${report.pengurus.nama}`, 14, yPosition);
+            doc.text(`${bidangName} - ${report.pengurus}`, 14, yPosition);
             yPosition += 6;
 
             if (completedTasks.length > 0) {
@@ -117,20 +122,15 @@ const RekapSection = () => {
         doc.save(`Laporan_Harian_${filters.tanggal}.pdf`);
     };
 
-    const bidangOptions = user.role === 'admin_utama' 
-        ? bidangList 
-        : bidangList.filter(b => b.id === user.bidang);
-
-
     return (
         <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <h3 className="text-xl font-bold text-gray-700">Filter Laporan</h3>
                 <div className="w-full md:w-auto flex flex-col md:flex-row gap-2">
                     <input type="date" name="tanggal" value={filters.tanggal} onChange={handleFilterChange} className="px-4 py-2 border rounded-lg w-full md:w-auto" />
-                    <select name="bidang" value={filters.bidang} onChange={handleFilterChange} className="px-4 py-2 border rounded-lg w-full md:w-auto" disabled={user.role === 'admin_bidang'}>
+                    <select name="bidang" value={filters.bidang} onChange={handleFilterChange} className="px-4 py-2 border rounded-lg w-full md:w-auto">
                         <option value="">Semua Bidang</option>
-                        {bidangOptions.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        {bidangList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                     <button onClick={handleExportPDF} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center">
                         <FontAwesomeIcon icon={faFilePdf} className="mr-2" />
@@ -150,15 +150,13 @@ const RekapSection = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {loading ? (
-                             <tr><td colSpan="4" className="px-6 py-4 text-center text-gray-500">Memuat laporan...</td></tr>
-                        ) : filteredReports.length > 0 ? filteredReports.map(report => {
-                            const totalTasks = report.details.length;
-                            const completedTasks = report.details.filter(d => d.status === 'selesai').length;
+                        {filteredReports.length > 0 ? filteredReports.map(report => {
+                            const totalTasks = report.jobdesk.length;
+                            const completedTasks = report.jobdesk.filter(Boolean).length;
                             return (
                                 <tr key={report.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.pengurus.nama}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{report.bidang.name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.pengurus}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{bidangList.find(b => b.id === report.bidang)?.name}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                         <span className="text-green-600 font-semibold">{completedTasks} Selesai</span> / 
                                         <span className="text-red-600 font-semibold"> {totalTasks - completedTasks} Belum</span>

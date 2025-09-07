@@ -4,10 +4,10 @@ import { useAppContext } from '../../context/AppContext';
 import DataManagementModal from '../modals/DataManagementModal';
 import PengurusForm from './PengurusForm';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faEdit, faTrash, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faEdit, faTrash } from '@fortawesome/free-solid-svg-icons';
 
 const PengurusTab = () => {
-    const { pengurusData, bidangList, deletePengurus, loading } = useAppContext();
+    const { pengurusData, bidangList, deletePengurus } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPengurus, setEditingPengurus] = useState(null);
 
@@ -21,20 +21,11 @@ const PengurusTab = () => {
         setEditingPengurus(null);
     };
 
-    const handleDelete = async (pengurus) => {
-        if (window.confirm(`Apakah Anda yakin ingin menghapus ${pengurus.nama}?`)) {
-            try {
-                await deletePengurus(pengurus.id);
-                alert('Pengurus berhasil dihapus.');
-            } catch (error) {
-                alert(`Gagal menghapus: ${error.message}`);
-            }
+    const handleDelete = (bidangId, pengurusNameToDelete) => {
+        if (window.confirm(`Apakah Anda yakin ingin menghapus ${pengurusNameToDelete}?`)) {
+            deletePengurus(bidangId, pengurusNameToDelete);
         }
     };
-
-    if (loading) {
-        return <div className="text-center p-4"><FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" /> Memuat data...</div>;
-    }
 
     return (
         <div>
@@ -58,23 +49,23 @@ const PengurusTab = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {pengurusData.map((p) => {
-                            const bidangName = bidangList.find(b => b.id === p.bidang_id)?.name || p.bidang_id;
-                            return (
-                                <tr key={p.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.nama}</td>
+                        {Object.entries(pengurusData).map(([bidangId, pengurusList]) => {
+                            const bidangName = bidangList.find(b => b.id === bidangId)?.name || bidangId;
+                            return pengurusList.map((p, index) => (
+                                <tr key={`${bidangId}-${index}`}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{typeof p === 'object' ? p.nama : p}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bidangName}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.kelas || '-'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{typeof p === 'object' ? p.kelas : '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
-                                        <button onClick={() => openModal(p)} className="text-indigo-600 hover:text-indigo-900">
+                                        <button onClick={() => openModal({ ...p, bidang: bidangId })} className="text-indigo-600 hover:text-indigo-900">
                                             <FontAwesomeIcon icon={faEdit} />
                                         </button>
-                                        <button onClick={() => handleDelete(p)} className="text-red-600 hover:text-red-900">
+                                        <button onClick={() => handleDelete(bidangId, typeof p === 'object' ? p.nama : p)} className="text-red-600 hover:text-red-900">
                                             <FontAwesomeIcon icon={faTrash} />
                                         </button>
                                     </td>
                                 </tr>
-                            );
+                            ));
                         })}
                     </tbody>
                 </table>

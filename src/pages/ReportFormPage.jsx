@@ -11,12 +11,12 @@ const ReportFormPage = () => {
     const { bidangId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { bidangList, pengurusData, jobdeskData, addReport, drafts, setDrafts, loading } = useAppContext();
+    const { bidangList, pengurusData, jobdeskData, addReport, drafts, setDrafts } = useAppContext();
     
     const [currentTab, setCurrentTab] = useState('malam');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
-        pengurus_id: '',
+        pengurus: '',
         jobdeskStatus: [],
         incompleteDetails: {},
     });
@@ -24,25 +24,30 @@ const ReportFormPage = () => {
     const bidang = bidangList.find(b => b.id === bidangId);
     const today = dayjs().format('YYYY-MM-DD');
     const draftKey = `${bidangId}_${user.username}_${today}`;
-
-    const pengurusOptions = pengurusData.filter(p => p.bidang_id === bidangId);
     
     let currentJobdesks = [];
     if (bidangId === 'bapakamar') {
-        currentJobdesks = jobdeskData.filter(j => j.bidang_id === 'bapakamar' && j.type === currentTab);
+        currentJobdesks = jobdeskData[`bapakamar_${currentTab}`] || [];
     } else {
-        currentJobdesks = jobdeskData.filter(j => j.bidang_id === bidangId);
+        currentJobdesks = jobdeskData[bidangId] || [];
     }
 
     useEffect(() => {
         const draft = drafts[draftKey];
         const initialStatus = Array(currentJobdesks.length).fill(true); 
-        
-        setFormData({
-            pengurus_id: draft?.pengurus_id || '',
-            jobdeskStatus: (draft?.jobdeskStatus?.length === currentJobdesks.length) ? draft.jobdeskStatus : initialStatus,
-            incompleteDetails: draft?.incompleteDetails || {},
-        });
+        if (draft && draft.jobdeskStatus && draft.jobdeskStatus.length === currentJobdesks.length) {
+            setFormData({
+                pengurus: draft.pengurus || '',
+                jobdeskStatus: draft.jobdeskStatus,
+                incompleteDetails: draft.incompleteDetails || {},
+            });
+        } else {
+            setFormData({
+                pengurus: draft?.pengurus || '',
+                jobdeskStatus: initialStatus,
+                incompleteDetails: {},
+            });
+        }
     }, [bidangId, currentTab, drafts, draftKey, currentJobdesks.length]);
 
     const handleJobdeskChange = (index, status) => {
@@ -74,14 +79,13 @@ const ReportFormPage = () => {
         alert('Draft berhasil disimpan!');
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
         
-        if (!formData.pengurus_id) {
+        if (!formData.pengurus) {
             alert('Harap pilih nama pengurus.');
             return;
         }
-
         let isInvalid = false;
         Object.values(formData.incompleteDetails).forEach(detail => {
             if (!detail.alasan.trim() || !detail.solusi.trim()) isInvalid = true;
@@ -92,46 +96,34 @@ const ReportFormPage = () => {
         }
 
         setIsSubmitting(true);
-        try {
-            const jobdesk_laporan = currentJobdesks.map((job, index) => ({
-                jobdesk_id: job.id,
-                status: formData.jobdeskStatus[index] ? 'selesai' : 'tidak_selesai',
-                alasan: !formData.jobdeskStatus[index] ? formData.incompleteDetails[index]?.alasan : null,
-                solusi: !formData.jobdeskStatus[index] ? formData.incompleteDetails[index]?.solusi : null,
-            }));
-
+        setTimeout(() => {
             const finalReport = {
-                bidang_id: bidangId,
-                pengurus_id: formData.pengurus_id,
+                id: Date.now().toString(),
+                bidang: bidangId,
+                tab: bidangId === 'bapakamar' ? currentTab : null,
+                pengurus: formData.pengurus,
                 tanggal: today,
-                type: bidangId === 'bapakamar' ? currentTab : null,
-                jobdesks: jobdesk_laporan,
+                jobdesk: formData.jobdeskStatus,
+                incomplete: formData.incompleteDetails,
+                timestamp: new Date().toISOString(),
+                submittedBy: user.name,
+                status: 'submitted',
             };
-
-            await addReport(finalReport);
-            
+            addReport(finalReport);
             const newDrafts = { ...drafts };
             delete newDrafts[draftKey];
             setDrafts(newDrafts);
-
+            setIsSubmitting(false);
             alert('Laporan berhasil disubmit!');
             navigate('/');
-
-        } catch (error) {
-            console.error("Gagal submit laporan:", error);
-            alert(`Gagal mengirim laporan: ${error.message}`);
-        } finally {
-            setIsSubmitting(false);
-        }
+        }, 1500);
     };
 
-    if (loading) {
-        return <div className="p-8 text-center">Memuat data...</div>;
+    if (!bidang) {
+        return <div className="p-8 text-center">Memuat...</div>;
     }
 
-    if (!bidang) {
-        return <div className="p-8 text-center">Bidang tidak ditemukan.</div>;
-    }
+    const pengurusOptions = pengurusData[bidangId] || [];
 
     return (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -150,13 +142,15 @@ const ReportFormPage = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-2">Nama Pengurus</label>
                             <select 
                                 required
-                                value={formData.pengurus_id}
-                                onChange={(e) => setFormData(prev => ({ ...prev, pengurus_id: e.target.value }))}
+                                value={formData.pengurus}
+                                onChange={(e) => setFormData(prev => ({ ...prev, pengurus: e.target.value }))}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Pilih Pengurus</option>
-                                {pengurusOptions.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.nama} {p.kelas ? `(Kelas ${p.kelas})` : ''}</option>
+                                {pengurusOptions.map((p, index) => (
+                                    bidangId === 'bapakamar' 
+                                        ? <option key={index} value={p.nama}>{p.nama} (Kelas {p.kelas})</option>
+                                        : <option key={index} value={p}>{p}</option>
                                 ))}
                             </select>
                         </div>
@@ -179,8 +173,8 @@ const ReportFormPage = () => {
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Daftar Tugas</h3>
                         <div className="space-y-4">
                            {formData.jobdeskStatus.length > 0 && currentJobdesks.map((job, index) => (
-                                <div key={job.id} className="p-4 border border-gray-200 rounded-lg">
-                                    <p className="text-sm text-gray-800 font-medium mb-3">{job.description}</p>
+                                <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                                    <p className="text-sm text-gray-800 font-medium mb-3">{job}</p>
                                     <div className="flex items-center space-x-6">
                                         <label className="flex items-center cursor-pointer">
                                             <input type="radio" name={`jobdesk_status_${index}`} value="selesai" checked={formData.jobdeskStatus[index] === true} onChange={() => handleJobdeskChange(index, 'selesai')} className="h-4 w-4 text-blue-600"/>
