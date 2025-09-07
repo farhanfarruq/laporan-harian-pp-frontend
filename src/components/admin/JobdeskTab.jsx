@@ -4,10 +4,10 @@ import { useAppContext } from '../../context/AppContext';
 import DataManagementModal from '../modals/DataManagementModal';
 import JobdeskForm from './JobdeskForm';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faEdit, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faEdit, faTrash, faSpinner } from '@fortawesome/free-solid-svg-icons';
 
 const JobdeskTab = () => {
-    const { jobdeskData, bidangList, deleteJobdesk } = useAppContext();
+    const { jobdeskData, bidangList, deleteJobdesk, loading } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingJobdesk, setEditingJobdesk] = useState(null);
 
@@ -21,10 +21,28 @@ const JobdeskTab = () => {
         setEditingJobdesk(null);
     };
     
-    const handleDelete = (bidangId, jobdeskIndex) => {
+    const handleDelete = async (jobdesk) => {
         if (window.confirm(`Apakah Anda yakin ingin menghapus jobdesk ini?`)) {
-            deleteJobdesk(bidangId, jobdeskIndex);
+            try {
+                await deleteJobdesk(jobdesk.id);
+                alert('Jobdesk berhasil dihapus.');
+            } catch (error) {
+                alert(`Gagal menghapus: ${error.message}`);
+            }
         }
+    };
+    
+    if (loading) {
+        return <div className="text-center p-4"><FontAwesomeIcon icon={faSpinner} className="animate-spin mr-2" /> Memuat data...</div>;
+    }
+
+    const getBidangName = (bidangId, type) => {
+        const bidang = bidangList.find(b => b.id === bidangId);
+        if (!bidang) return bidangId;
+        if (bidangId === 'bapakamar' && type) {
+            return `${bidang.name} (${type})`;
+        }
+        return bidang.name;
     };
 
     return (
@@ -48,23 +66,20 @@ const JobdeskTab = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {Object.entries(jobdeskData).map(([bidangKey, jobdeskList]) => {
-                            const bidangName = bidangList.find(b => b.id === bidangKey.split('_')[0])?.name || bidangKey;
-                            return jobdeskList.map((job, index) => (
-                                <tr key={`${bidangKey}-${index}`}>
-                                    <td className="px-6 py-4 whitespace-pre-wrap text-sm font-medium text-gray-900">{job}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bidangName} {bidangKey.includes('_') ? `(${bidangKey.split('_')[1]})` : ''}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
-                                        <button onClick={() => openModal({ text: job, bidang: bidangKey, index })} className="text-indigo-600 hover:text-indigo-900">
-                                            <FontAwesomeIcon icon={faEdit} />
-                                        </button>
-                                        <button onClick={() => handleDelete(bidangKey, index)} className="text-red-600 hover:text-red-900">
-                                            <FontAwesomeIcon icon={faTrash} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ));
-                        })}
+                        {jobdeskData.map((job) => (
+                            <tr key={job.id}>
+                                <td className="px-6 py-4 whitespace-pre-wrap text-sm font-medium text-gray-900">{job.description}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getBidangName(job.bidang_id, job.type)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
+                                    <button onClick={() => openModal(job)} className="text-indigo-600 hover:text-indigo-900">
+                                        <FontAwesomeIcon icon={faEdit} />
+                                    </button>
+                                    <button onClick={() => handleDelete(job)} className="text-red-600 hover:text-red-900">
+                                        <FontAwesomeIcon icon={faTrash} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>

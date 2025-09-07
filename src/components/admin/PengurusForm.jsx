@@ -4,21 +4,22 @@ import { useAppContext } from '../../context/AppContext';
 
 const PengurusForm = ({ pengurus, closeModal }) => {
     const { bidangList, addPengurus, updatePengurus } = useAppContext();
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         nama: '',
         kelas: '',
-        bidang: '',
+        bidang_id: '',
     });
 
     useEffect(() => {
         if (pengurus) {
             setFormData({
-                nama: typeof pengurus === 'object' ? pengurus.nama : pengurus,
-                kelas: typeof pengurus === 'object' ? pengurus.kelas : '',
-                bidang: pengurus.bidang || '',
+                nama: pengurus.nama || '',
+                kelas: pengurus.kelas || '',
+                bidang_id: pengurus.bidang_id || '',
             });
         } else {
-            setFormData({ nama: '', kelas: '', bidang: '' });
+            setFormData({ nama: '', kelas: '', bidang_id: '' });
         }
     }, [pengurus]);
 
@@ -27,14 +28,28 @@ const PengurusForm = ({ pengurus, closeModal }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (pengurus) {
-            updatePengurus(pengurus.bidang, typeof pengurus === 'object' ? pengurus.nama : pengurus, formData);
-        } else {
-            addPengurus(formData.bidang, formData);
+        setIsSubmitting(true);
+        try {
+            const payload = { ...formData };
+            if (payload.bidang_id !== 'bapakamar') {
+                payload.kelas = null;
+            }
+
+            if (pengurus) {
+                await updatePengurus(pengurus.id, payload);
+                alert('Pengurus berhasil diperbarui.');
+            } else {
+                await addPengurus(payload);
+                alert('Pengurus berhasil ditambahkan.');
+            }
+            closeModal();
+        } catch (error) {
+            alert(`Gagal menyimpan: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
         }
-        closeModal();
     };
 
     return (
@@ -53,12 +68,11 @@ const PengurusForm = ({ pengurus, closeModal }) => {
             <div>
                 <label className="block text-sm font-medium text-gray-700">Bidang</label>
                 <select
-                    name="bidang"
-                    value={formData.bidang}
+                    name="bidang_id"
+                    value={formData.bidang_id}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     required
-                    disabled={!!pengurus}
                 >
                     <option value="">Pilih Bidang</option>
                     {bidangList.map(b => (
@@ -66,7 +80,7 @@ const PengurusForm = ({ pengurus, closeModal }) => {
                     ))}
                 </select>
             </div>
-            {formData.bidang === 'bapakamar' && (
+            {formData.bidang_id === 'bapakamar' && (
                  <div>
                     <label className="block text-sm font-medium text-gray-700">Kelas</label>
                     <input
@@ -78,6 +92,7 @@ const PengurusForm = ({ pengurus, closeModal }) => {
                     />
                 </div>
             )}
+            <input type="submit" hidden disabled={isSubmitting}/>
         </form>
     );
 };
