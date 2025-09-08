@@ -11,6 +11,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      
+      {/* === BAGIAN YANG DIPERBAIKI === */}
       <Route 
         path="/" 
         element={
@@ -19,10 +21,13 @@ function App() {
           </ProtectedRoute>
         }
       >
+        {/* Rute-rute ini sekarang akan dirender di dalam <Outlet /> milik Layout */}
         <Route index element={<DashboardPage />} />
         <Route path="report/:bidangId" element={<ReportFormPage />} />
         <Route path="admin" element={<AdminPage />} />
       </Route>
+      {/* === AKHIR PERBAIKAN === */}
+
     </Routes>
   );
 }
