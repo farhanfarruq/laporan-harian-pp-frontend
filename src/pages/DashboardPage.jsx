@@ -1,48 +1,57 @@
-import React from 'react';
-import DashboardCard from '../components/DashboardCard';
+// src/pages/DashboardPage.jsx
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
-import { Link } from 'react-router-dom';
-import Layout from '../components/Layout';
+import DashboardCard from '../components/DashboardCard';
 
 const DashboardPage = () => {
-    const { bidangList, loading, error } = useAppContext();
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const { bidangList } = useAppContext();
 
-    if (loading) {
-        return (
-            <Layout>
-                <div className="text-center py-10">
-                    <p className="text-gray-500">Memuat data bidang...</p>
-                </div>
-            </Layout>
-        );
+    const openForm = (bidangId) => {
+        navigate(`/report/${bidangId}`);
+    };
+
+    const openAdminPanel = () => {
+        navigate('/admin');
+    };
+
+    let availableBidang = bidangList;
+    if (user.role === 'admin_bidang') {
+        availableBidang = bidangList.filter(b => b.id === user.bidang);
     }
     
-    if (error) {
-         return (
-            <Layout>
-                <div className="text-center py-10">
-                    <p className="text-red-500">Error: {error}</p>
-                </div>
-            </Layout>
-        );
-    }
-
     return (
-        <Layout>
-            <div className="p-4 md:p-6">
-                <h1 className="text-2xl font-bold mb-6 text-gray-800">Pilih Bidang</h1>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                    {bidangList.map((bidang) => (
-                        <Link to={`/report/${bidang.id}`} key={bidang.id}>
-                            <DashboardCard
-                                title={bidang.nama}
-                                description={bidang.deskripsi}
-                            />
-                        </Link>
-                    ))}
-                </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard</h2>
+                <p className="text-gray-600">Pilih bidang untuk membuat atau melihat laporan</p>
             </div>
-        </Layout>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {availableBidang.map(bidang => (
+                    <DashboardCard
+                        key={bidang.id}
+                        title={bidang.name}
+                        description="Klik untuk membuat laporan atau melihat data"
+                        icon={bidang.icon}
+                        color={bidang.color}
+                        onClick={() => openForm(bidang.id)}
+                    />
+                ))}
+
+                {(user.role === 'admin_utama' || user.role === 'admin_bidang') && (
+                    <DashboardCard
+                        title="Admin Panel"
+                        description="Kelola data dan lihat rekap laporan"
+                        icon="fa-cog"
+                        color="bg-gray-600"
+                        onClick={openAdminPanel}
+                    />
+                )}
+            </div>
+        </div>
     );
 };
 

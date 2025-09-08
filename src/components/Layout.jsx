@@ -7,7 +7,6 @@ const Layout = () => {
     <div className="bg-gray-50 min-h-screen">
       <Header />
       <main>
-        {/* Outlet akan merender komponen halaman (Dashboard, Admin, dll.) */}
         <Outlet />
       </main>
     </div>
