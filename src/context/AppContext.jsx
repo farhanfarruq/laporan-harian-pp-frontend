@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { useLocalStorage } from '../hooks/useLocalStorage'; // Drafts masih menggunakan localStorage
+// HAPUS BARIS INI -> import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const AppContext = createContext(null);
 
@@ -9,7 +9,6 @@ export const AppProvider = ({ children }) => {
     const API_URL = import.meta.env.VITE_API_URL;
 
     // --- State Management ---
-    // Ganti useLocalStorage dengan useState untuk data dari server
     const [reports, setReports] = useState([]);
     const [pengurusData, setPengurusData] = useState({});
     const [jobdeskData, setJobdeskData] = useState({});
@@ -17,8 +16,8 @@ export const AppProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Drafts bisa tetap di localStorage karena bersifat lokal per perangkat
-    const [drafts, setDrafts] = useLocalStorage('drafts', {});
+    // UBAH BARIS INI: dari useLocalStorage menjadi useState
+    const [drafts, setDrafts] = useState({});
 
     // Fungsi untuk mengambil semua data awal dari backend
     useEffect(() => {
@@ -36,7 +35,6 @@ export const AppProvider = ({ children }) => {
                     'Accept': 'application/json',
                 };
 
-                // Ambil semua data secara paralel
                 const [bidangRes, pengurusRes, jobdeskRes, laporanRes] = await Promise.all([
                     fetch(`${API_URL}/api/bidang`, { headers }),
                     fetch(`${API_URL}/api/master/pengurus`, { headers }),
@@ -53,7 +51,6 @@ export const AppProvider = ({ children }) => {
                 const jobdesk = await jobdeskRes.json();
                 const laporan = await laporanRes.json();
                 
-                // --- Format data agar sesuai dengan struktur state sebelumnya ---
                 setBidangList(bidang.data);
 
                 const formattedPengurus = pengurus.data.reduce((acc, p) => {
@@ -85,7 +82,7 @@ export const AppProvider = ({ children }) => {
         fetchInitialData();
     }, [token, API_URL]);
 
-    // --- Fungsi CRUD Laporan (sudah disesuaikan) ---
+    // --- Fungsi CRUD Laporan ---
     const addReport = async (report) => {
         try {
             const response = await fetch(`${API_URL}/api/laporan`, {
@@ -97,7 +94,7 @@ export const AppProvider = ({ children }) => {
                 },
                 body: JSON.stringify({
                     ...report,
-                    user_id: user.id // Pastikan user_id dikirim
+                    user_id: user.id
                 }),
             });
             if (!response.ok) throw new Error('Gagal menambahkan laporan.');
@@ -105,7 +102,6 @@ export const AppProvider = ({ children }) => {
             setReports(prev => [newReport.data, ...prev]);
         } catch (err) {
             console.error(err);
-            // Handle error (e.g., show notification)
         }
     };
     
@@ -228,23 +224,10 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // Nilai yang disediakan oleh context
     const value = {
-        reports,
-        addReport,
-        drafts,
-        setDrafts,
-        jobdeskData,
-        addJobdesk,
-        updateJobdesk,
-        deleteJobdesk,
-        pengurusData,
-        addPengurus,
-        updatePengurus,
-        deletePengurus,
-        bidangList,
-        loading,
-        error,
+        reports, addReport, drafts, setDrafts, jobdeskData, addJobdesk, updateJobdesk,
+        deleteJobdesk, pengurusData, addPengurus, updatePengurus, deletePengurus,
+        bidangList, loading, error,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
