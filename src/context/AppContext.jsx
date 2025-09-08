@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-// HAPUS BARIS INI -> import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const AppContext = createContext(null);
 
@@ -8,18 +7,14 @@ export const AppProvider = ({ children }) => {
     const { token, user } = useAuth();
     const API_URL = import.meta.env.VITE_API_URL;
 
-    // --- State Management ---
     const [reports, setReports] = useState([]);
     const [pengurusData, setPengurusData] = useState({});
     const [jobdeskData, setJobdeskData] = useState({});
     const [bidangList, setBidangList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [drafts, setDrafts] = useState({}); // Drafts bersifat sementara
 
-    // UBAH BARIS INI: dari useLocalStorage menjadi useState
-    const [drafts, setDrafts] = useState({});
-
-    // Fungsi untuk mengambil semua data awal dari backend
     useEffect(() => {
         const fetchInitialData = async () => {
             if (!token) {
@@ -35,12 +30,15 @@ export const AppProvider = ({ children }) => {
                     'Accept': 'application/json',
                 };
 
+                // === PERUBAHAN DI SINI ===
+                // Mengambil data dari rute umum, bukan rute /master
                 const [bidangRes, pengurusRes, jobdeskRes, laporanRes] = await Promise.all([
                     fetch(`${API_URL}/api/bidang`, { headers }),
-                    fetch(`${API_URL}/api/master/pengurus`, { headers }),
-                    fetch(`${API_URL}/api/master/jobdesk`, { headers }),
+                    fetch(`${API_URL}/api/pengurus`, { headers }),      // Dihapus /master
+                    fetch(`${API_URL}/api/jobdesk`, { headers }),        // Dihapus /master
                     fetch(`${API_URL}/api/laporan`, { headers })
                 ]);
+                // === AKHIR PERUBAHAN ===
 
                 if (!bidangRes.ok || !pengurusRes.ok || !jobdeskRes.ok || !laporanRes.ok) {
                     throw new Error('Gagal mengambil data dari server.');
@@ -51,9 +49,9 @@ export const AppProvider = ({ children }) => {
                 const jobdesk = await jobdeskRes.json();
                 const laporan = await laporanRes.json();
                 
-                setBidangList(bidang.data);
+                setBidangList(bidang.data || bidang);
 
-                const formattedPengurus = pengurus.data.reduce((acc, p) => {
+                const formattedPengurus = (pengurus.data || pengurus).reduce((acc, p) => {
                     const bidangKey = p.bidang_id;
                     if (!acc[bidangKey]) acc[bidangKey] = [];
                     acc[bidangKey].push({ id: p.id, nama: p.nama, kelas: p.kelas });
@@ -61,7 +59,7 @@ export const AppProvider = ({ children }) => {
                 }, {});
                 setPengurusData(formattedPengurus);
 
-                const formattedJobdesk = jobdesk.data.reduce((acc, j) => {
+                const formattedJobdesk = (jobdesk.data || jobdesk).reduce((acc, j) => {
                     const key = j.type ? `${j.bidang_id}_${j.type}` : j.bidang_id;
                     if (!acc[key]) acc[key] = [];
                     acc[key].push({id: j.id, description: j.description});
@@ -69,7 +67,7 @@ export const AppProvider = ({ children }) => {
                 }, {});
                 setJobdeskData(formattedJobdesk);
                 
-                setReports(laporan.data);
+                setReports(laporan.data || laporan);
 
             } catch (err) {
                 console.error("Failed to fetch initial data:", err);
@@ -87,15 +85,8 @@ export const AppProvider = ({ children }) => {
         try {
             const response = await fetch(`${API_URL}/api/laporan`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    ...report,
-                    user_id: user.id
-                }),
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ ...report, user_id: user.id }),
             });
             if (!response.ok) throw new Error('Gagal menambahkan laporan.');
             const newReport = await response.json();
@@ -105,7 +96,7 @@ export const AppProvider = ({ children }) => {
         }
     };
     
-    // --- Fungsi CRUD Master Data (Pengurus) ---
+    // --- Fungsi CRUD Master Data (PENGURUS) - Tetap menggunakan /master ---
     const addPengurus = async (bidangId, newPengurus) => {
         try {
             const response = await fetch(`${API_URL}/api/master/pengurus`, {
@@ -127,7 +118,6 @@ export const AppProvider = ({ children }) => {
     const updatePengurus = async (bidangId, oldNama, updatedPengurus) => {
         const pengurusToUpdate = pengurusData[bidangId]?.find(p => p.nama === oldNama);
         if (!pengurusToUpdate) return;
-
         try {
             const response = await fetch(`${API_URL}/api/master/pengurus/${pengurusToUpdate.id}`, {
                 method: 'PUT',
@@ -140,15 +130,12 @@ export const AppProvider = ({ children }) => {
                 ...prev,
                 [bidangId]: prev[bidangId].map(p => p.id === pengurusToUpdate.id ? result.data : p),
             }));
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
     
     const deletePengurus = async (bidangId, pengurusNama) => {
         const pengurusToDelete = pengurusData[bidangId]?.find(p => p.nama === pengurusNama);
         if (!pengurusToDelete) return;
-
         try {
             const response = await fetch(`${API_URL}/api/master/pengurus/${pengurusToDelete.id}`, {
                 method: 'DELETE',
@@ -159,12 +146,10 @@ export const AppProvider = ({ children }) => {
                 ...prev,
                 [bidangId]: prev[bidangId].filter(p => p.id !== pengurusToDelete.id),
             }));
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
 
-    // --- Fungsi CRUD Master Data (Jobdesk) ---
+    // --- Fungsi CRUD Master Data (JOBDESK) - Tetap menggunakan /master ---
     const addJobdesk = async (key, newJobdesk) => {
         const [bidang_id, type] = key.split('_');
         try {
@@ -179,15 +164,12 @@ export const AppProvider = ({ children }) => {
                 ...prev,
                 [key]: [...(prev[key] || []), {id: result.data.id, description: result.data.description}],
             }));
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
 
     const updateJobdesk = async (key, oldJobdesk, newJobdesk) => {
         const jobdeskToUpdate = jobdeskData[key]?.find(j => j.description === oldJobdesk);
         if (!jobdeskToUpdate) return;
-        
         try {
              const response = await fetch(`${API_URL}/api/master/jobdesk/${jobdeskToUpdate.id}`, {
                 method: 'PUT',
@@ -200,15 +182,12 @@ export const AppProvider = ({ children }) => {
                 ...prev,
                 [key]: prev[key].map(j => j.id === jobdeskToUpdate.id ? { ...j, description: result.data.description } : j),
             }));
-        } catch (err) {
-             console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
 
     const deleteJobdesk = async (key, jobdeskDescription) => {
         const jobdeskToDelete = jobdeskData[key]?.find(j => j.description === jobdeskDescription);
         if (!jobdeskToDelete) return;
-
         try {
             const response = await fetch(`${API_URL}/api/master/jobdesk/${jobdeskToDelete.id}`, {
                 method: 'DELETE',
@@ -219,16 +198,10 @@ export const AppProvider = ({ children }) => {
                 ...prev,
                 [key]: prev[key].filter(j => j.id !== jobdeskToDelete.id),
             }));
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
 
-    const value = {
-        reports, addReport, drafts, setDrafts, jobdeskData, addJobdesk, updateJobdesk,
-        deleteJobdesk, pengurusData, addPengurus, updatePengurus, deletePengurus,
-        bidangList, loading, error,
-    };
+    const value = { reports, addReport, drafts, setDrafts, jobdeskData, addJobdesk, updateJobdesk, deleteJobdesk, pengurusData, addPengurus, updatePengurus, deletePengurus, bidangList, loading, error, };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
