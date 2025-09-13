@@ -1,95 +1,137 @@
-// src/context/AppContext.jsx
-import React, { createContext, useContext } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { initialJobdeskData, initialPengurusData, bidangList } from '../data/mockData';
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import axiosClient from '../api/axiosClient.js'; // Perbaikan: Menambahkan ekstensi file .js
+import { useAuth } from './AuthContext.jsx'; // Perbaikan: Menambahkan ekstensi file .jsx
 
-const AppContext = createContext(null);
+const AppContext = createContext();
+
+export const useAppContext = () => {
+    return useContext(AppContext);
+};
 
 export const AppProvider = ({ children }) => {
-    const [reports, setReports] = useLocalStorage('reports', []);
-    const [drafts, setDrafts] = useLocalStorage('drafts', {});
-    const [jobdeskData, setJobdeskData] = useLocalStorage('jobdeskData', initialJobdeskData);
-    const [pengurusData, setPengurusData] = useLocalStorage('pengurusData', initialPengurusData);
+    const { isAuthenticated } = useAuth(); // Dapatkan status otentikasi
 
-    const addReport = (report) => {
-        setReports(prevReports => [...prevReports, report]);
+    // State untuk data utama dari API
+    const [reports, setReports] = useState([]);
+    const [jobdeskData, setJobdeskData] = useState({});
+    const [pengurusData, setPengurusData] = useState({});
+    const [bidangData, setBidangData] = useState([]);
+
+    // State untuk draft (disimpan di memory, hilang saat refresh)
+    const [drafts, setDrafts] = useState({});
+
+    // State untuk loading dan error
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // useEffect untuk mengambil data awal saat pengguna terotentikasi
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            if (!isAuthenticated) {
+                // Reset data jika logout
+                setReports([]);
+                setJobdeskData({});
+                setPengurusData({});
+                setBidangData([]);
+                setLoading(false);
+                return; // Jangan fetch data jika belum login
+            }
+
+            setLoading(true);
+            setError(null);
+
+            try {
+                // Mengambil semua data yang dibutuhkan secara paralel
+                const [laporanRes, jobdeskRes, pengurusRes, bidangRes] = await Promise.all([
+                    axiosClient.get('/laporan'),
+                    axiosClient.get('/jobdesk'),
+                    axiosClient.get('/pengurus'),
+                    axiosClient.get('/bidang'),
+                ]);
+
+                // Update state dengan data dari API
+                setReports(laporanRes.data);
+                setJobdeskData(jobdeskRes.data);
+                setPengurusData(pengurusRes.data);
+                setBidangData(bidangRes.data);
+
+            } catch (err) {
+                console.error("Gagal mengambil data awal:", err);
+                setError("Tidak dapat memuat data dari server. Silakan coba lagi nanti.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialData();
+    }, [isAuthenticated]); // Jalankan effect ini setiap kali status otentikasi berubah
+
+
+    // Fungsi untuk menambah laporan baru melalui API
+    const addReport = async (newReportData) => {
+        try {
+            const response = await axiosClient.post('/laporan', newReportData);
+            // Tambahkan laporan baru ke daftar laporan di state
+            setReports(prevReports => [response.data, ...prevReports]);
+            return response.data; // Kembalikan data laporan baru untuk Aksi selanjutnya
+        } catch (err) {
+            console.error("Gagal mengirim laporan:", err);
+            // Melempar error agar bisa ditangkap di komponen form
+            throw err.response?.data?.message || "Terjadi kesalahan saat menyimpan laporan.";
+        }
     };
     
-    // Pengurus CRUD
-    const addPengurus = (bidangId, newPengurus) => {
-        setPengurusData(prev => {
-            const list = prev[bidangId] || [];
-            const updatedList = [...list, newPengurus.bidang === 'bapakamar' ? { nama: newPengurus.nama, kelas: newPengurus.kelas } : newPengurus.nama];
-            return { ...prev, [bidangId]: updatedList };
-        });
+    // Fungsi untuk mengambil laporan dengan filter
+    const fetchReports = async (filters = {}) => {
+        setLoading(true);
+        setError(null);
+        try {
+            // Hapus filter yang kosong
+            const cleanFilters = Object.fromEntries(
+                Object.entries(filters).filter(([_, v]) => v != null && v !== '')
+            );
+            const params = new URLSearchParams(cleanFilters).toString();
+            const response = await axiosClient.get(`/laporan?${params}`);
+            setReports(response.data);
+        } catch (err) {
+            console.error("Gagal memfilter laporan:", err);
+            setError("Tidak dapat memuat data laporan.");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const updatePengurus = (bidangId, oldNama, updatedPengurus) => {
-        setPengurusData(prev => {
-            const list = prev[bidangId] || [];
-            const updatedList = list.map(p => {
-                 const currentName = typeof p === 'object' ? p.nama : p;
-                 if (currentName === oldNama) {
-                     return updatedPengurus.bidang === 'bapakamar' ? { nama: updatedPengurus.nama, kelas: updatedPengurus.kelas } : updatedPengurus.nama;
-                 }
-                 return p;
-            });
-            return { ...prev, [bidangId]: updatedList };
-        });
+
+    // Fungsi untuk draft tetap sama, karena ini adalah fitur sisi client
+    const saveDraft = (bidang, data) => {
+        setDrafts(prevDrafts => ({
+            ...prevDrafts,
+            [bidang]: data,
+        }));
     };
 
-    const deletePengurus = (bidangId, pengurusNama) => {
-        setPengurusData(prev => {
-            const list = prev[bidangId] || [];
-            const updatedList = list.filter(p => (typeof p === 'object' ? p.nama : p) !== pengurusNama);
-            return { ...prev, [bidangId]: updatedList };
-        });
-    };
-    
-    // Jobdesk CRUD
-    const addJobdesk = (bidangId, newJobdesk) => {
-        setJobdeskData(prev => {
-            const list = prev[bidangId] || [];
-            return { ...prev, [bidangId]: [...list, newJobdesk] };
-        });
-    };
-    
-    const updateJobdesk = (bidangId, index, updatedText) => {
-        setJobdeskData(prev => {
-            const list = prev[bidangId] || [];
-            const updatedList = [...list];
-            updatedList[index] = updatedText;
-            return { ...prev, [bidangId]: updatedList };
-        });
-    };
-    
-    const deleteJobdesk = (bidangId, index) => {
-        setJobdeskData(prev => {
-            const list = prev[bidangId] || [];
-            const updatedList = list.filter((_, i) => i !== index);
-            return { ...prev, [bidangId]: updatedList };
+    const deleteDraft = (bidang) => {
+        setDrafts(prevDrafts => {
+            const newDrafts = { ...prevDrafts };
+            delete newDrafts[bidang];
+            return newDrafts;
         });
     };
 
     const value = {
         reports,
-        addReport,
         drafts,
-        setDrafts,
         jobdeskData,
-        addJobdesk,
-        updateJobdesk,
-        deleteJobdesk,
         pengurusData,
-        addPengurus,
-        updatePengurus,
-        deletePengurus,
-        bidangList
+        bidangData,
+        loading,
+        error,
+        addReport,
+        saveDraft,
+        deleteDraft,
+        fetchReports,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 
-export const useAppContext = () => {
-    return useContext(AppContext);
-};
